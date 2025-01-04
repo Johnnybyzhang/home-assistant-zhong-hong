@@ -5,6 +5,7 @@
 > [!WARNING]
 > 
 > 该集成仅适用于中弘VRF绿米版本的网关，且仅支持一个外机，并只测试了以下图示设备，可能会有不兼容的问题。
+
 <a href="B19"><img src="https://zhonghongtech.cn/upload/pro_img/171937526799334.jpg" width="256" ></a>
 
 # 安装方式
