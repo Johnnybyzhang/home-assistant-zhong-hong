@@ -11,6 +11,7 @@ import json
 
 import logging
 _LOGGER = logging.getLogger(__name__)
+# _LOGGER.setLevel(logging.DEBUG)
 
 SOCKET_BUFSIZE = 1024
 
@@ -50,8 +51,13 @@ class ZhongHongGateway:
         self.username = username
         self.password = password
         self._lock = asyncio.Lock()
+        # self.update_callback = None
         self._update_callbacks = []
         self.device_info = {}
+
+    # def register_update_callback(self, callback):
+    #     """Register a callback to notify when devices are updated."""
+    #     self.update_callback = callback
 
     def register_update_callback(self, callback):
         """Register a callback to notify when devices are updated."""
@@ -90,14 +96,15 @@ class ZhongHongGateway:
                     _LOGGER.debug(f'async_get suceesfully: {url}. resp: {resp}')
                     return json.loads(await resp.text())
         except aiohttp.client_exceptions.ClientResponseError as error:
-            if error.status == 400 and 'Expected HTTP/:' in error.message:
+            if error.status == 400 and 'Expected HTTP/' in error.message:
                 return await self.parse_resp(url, error.message)
-            _LOGGER.debug(f'async_get failed: {url}. Error: {error}')
+            _LOGGER.debug(f'async_get failed 400: {url}. Error: {error}')
         except Exception as error:
             _LOGGER.debug(f'async_get failed: {url}. Error: {error}')
         return None
 
     async def async_ac_list(self, max_retries = 3):
+        # async with self._lock:
         p = 0
         acs_list = []
         while max_retries > 0:
@@ -199,6 +206,7 @@ class ZhongHongGateway:
                 return f"模拟器{proto}台"
             return ""
 
+        # async with self._lock:
         url = f'{Endpoint.HOST.format(gateway=self.ip_addr)}{Endpoint.AC_BRAND}'
         resp = await self.async_get(url)
         if resp == None:
@@ -219,7 +227,7 @@ class ZhongHongGateway:
         if platform in ("linux", "linux2"):
             s.setsockopt(
                 socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 1
-            )
+            )  # pylint: disable=E1101
         if platform in ("darwin", "linux", "linux2"):
             s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
             s.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 3)
@@ -252,7 +260,7 @@ class ZhongHongGateway:
             self.open_socket()
 
         except OSError as e:
-            if e.errno == 9:
+            if e.errno == 9:  # when socket close, errorno 9 will raise
                 _LOGGER.debug("OSError 9 raise, socket is closed")
 
             else:
@@ -276,6 +284,7 @@ class ZhongHongGateway:
     def _listen_to_msg(self, data):
         _LOGGER.debug(f"recv data << {data.hex()}")
         def modbus_crc16(data):
+            # data = bytes.fromhex(hex_string)
             crc = 0xFFFF
             for pos in data:
                 crc ^= pos
