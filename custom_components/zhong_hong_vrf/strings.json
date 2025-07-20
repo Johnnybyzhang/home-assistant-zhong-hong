@@ -1,0 +1,39 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Zhong Hong VRF",
+        "description": "Enter the connection details for your Zhong Hong VRF gateway.",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "username": "Username",
+          "password": "Password"
+        },
+        "data_description": {
+          "host": "The IP address of your Zhong Hong VRF gateway",
+          "port": "TCP port for HTTP API (default: 9999)",
+          "username": "HTTP authentication username (default: admin)",
+          "password": "HTTP authentication password (default: empty)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to Zhong Hong VRF gateway. Please check the IP address, port, and credentials.",
+      "unknown": "An unexpected error occurred. Please check the logs for more details."
+    },
+    "abort": {
+      "already_configured": "This Zhong Hong VRF gateway is already configured."
+    }
+  },
+  "entity": {
+    "climate": {
+      "name": "AC {oa}-{ia}"
+    }
+  },
+  "device": {
+    "zhong_hong_vrf": {
+      "name": "Zhong Hong VRF {oa}-{ia}"
+    }
+  }
+}

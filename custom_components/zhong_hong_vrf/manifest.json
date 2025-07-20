@@ -1,0 +1,16 @@
+{
+  "domain": "zhong_hong_vrf",
+  "name": "Zhong Hong VRF",
+  "version": "1.0.0",
+  "documentation": "https://github.com/Johnnybyzhang/home-assistant-zhong-hong",
+  "requirements": [
+    "aiohttp>=3.8.0"
+  ],
+  "dependencies": [],
+  "codeowners": ["@Johnnybyzhang"],
+  "config_flow": true,
+  "iot_class": "local_push",
+  "supported_brands": {
+    "zhong_hong": "Zhong Hong"
+  }
+}

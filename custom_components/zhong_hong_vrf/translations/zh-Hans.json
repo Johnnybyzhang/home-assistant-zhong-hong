@@ -1,0 +1,39 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "设置中弘VRF",
+        "description": "输入您的中弘VRF网关连接详细信息。",
+        "data": {
+          "host": "主机地址",
+          "port": "端口",
+          "username": "用户名",
+          "password": "密码"
+        },
+        "data_description": {
+          "host": "中弘VRF网关的IP地址",
+          "port": "HTTP API的TCP端口（默认：9999）",
+          "username": "HTTP认证用户名（默认：admin）",
+          "password": "HTTP认证密码（默认：空）"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "无法连接到中弘VRF网关。请检查IP地址、端口和凭据。",
+      "unknown": "发生未知错误。请查看日志了解更多详情。"
+    },
+    "abort": {
+      "already_configured": "此中弘VRF网关已配置。"
+    }
+  },
+  "entity": {
+    "climate": {
+      "name": "空调 {oa}-{ia}"
+    }
+  },
+  "device": {
+    "zhong_hong_vrf": {
+      "name": "中弘VRF {oa}-{ia}"
+    }
+  }
+}
