@@ -14,7 +14,7 @@
 
 ## 手动安装
 
-将 `custom_components` 下的 `zhong_hong` 文件夹到 Home Assistant 中的`custom_components` 目录，并手动重启 Home Assistant。
+将 `custom_components` 下的 `zhong_hong_vrf` 文件夹到 Home Assistant 中的`custom_components` 目录，并手动重启 Home Assistant。
 
 # 设置
 
