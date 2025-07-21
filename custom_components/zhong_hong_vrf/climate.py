@@ -93,6 +93,19 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
     def _update_device_data(self, device_data: dict[str, Any]) -> None:
         """Update device data."""
         self.device_data = device_data
+        
+        _LOGGER.debug("Device data update: %s", device_data)
+        
+        # Log temperature range for debugging
+        try:
+            lowest = float(device_data.get("lowestVal", 16))
+            highest = float(device_data.get("highestVal", 30))
+            _LOGGER.debug(
+                "Temperature range from device: lowest=%.1f, highest=%.1f",
+                lowest, highest
+            )
+        except (ValueError, TypeError) as e:
+            _LOGGER.debug("Error parsing temperature range: %s", e)
 
         # Current temperature
         try:
@@ -128,17 +141,34 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
     def min_temp(self) -> float:
         """Return the minimum temperature."""
         try:
-            return float(self.device_data.get("lowestVal", 16))
+            min_val = float(self.device_data.get("lowestVal", 16))
+            # Ensure min is not equal to or greater than max
+            max_val = float(self.device_data.get("highestVal", 30))
+            if min_val >= max_val:
+                _LOGGER.warning(
+                    "Invalid temperature range from device: min=%.1f, max=%.1f, using defaults",
+                    min_val, max_val
+                )
+                return 16.0
+            return min_val
         except (ValueError, TypeError):
-            return 16
+            return 16.0
 
     @property
     def max_temp(self) -> float:
         """Return the maximum temperature."""
         try:
-            return float(self.device_data.get("highestVal", 30))
+            max_val = float(self.device_data.get("highestVal", 30))
+            min_val = float(self.device_data.get("lowestVal", 16))
+            if max_val <= min_val:
+                _LOGGER.warning(
+                    "Invalid temperature range from device: min=%.1f, max=%.1f, using defaults",
+                    min_val, max_val
+                )
+                return 30.0
+            return max_val
         except (ValueError, TypeError):
-            return 30
+            return 30.0
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
         """Set new target temperature."""
