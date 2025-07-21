@@ -64,9 +64,14 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
 
         oa, ia = device_key.split("_")
         self._attr_unique_id = f"{coordinator.config_entry.entry_id}_{device_key}"
+        
+        # Ensure we have a proper device name
+        device_name = f"AC {oa}-{ia}"
+        self._attr_name = device_name
+        
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, device_key)},
-            name=f"AC {oa}-{ia}",
+            name=device_name,
             manufacturer=coordinator.data["device_info"]["manufacturer"],
             model=coordinator.data["device_info"]["model"],
             sw_version=coordinator.data["device_info"]["sw_version"],
@@ -94,28 +99,38 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
         """Update device data."""
         self.device_data = device_data
         
-        _LOGGER.debug("Device data update: %s", device_data)
+        _LOGGER.debug("Device data update for %s: %s", self.name, device_data)
         
         # Log temperature range for debugging
         try:
             lowest = float(device_data.get("lowestVal", 16))
             highest = float(device_data.get("highestVal", 30))
             _LOGGER.debug(
-                "Temperature range from device: lowest=%.1f, highest=%.1f",
-                lowest, highest
+                "Temperature range for %s: lowest=%.1f, highest=%.1f, current_set=%s, current_in=%s",
+                self.name, lowest, highest, device_data.get("tempSet"), device_data.get("tempIn")
             )
         except (ValueError, TypeError) as e:
-            _LOGGER.debug("Error parsing temperature range: %s", e)
+            _LOGGER.debug("Error parsing temperature range for %s: %s", self.name, e)
 
-        # Current temperature
+        # Current temperature - handle both string and int values
         try:
-            self._attr_current_temperature = float(device_data.get("tempIn", 0))
+            temp_in = device_data.get("tempIn", 0)
+            if isinstance(temp_in, str):
+                temp_in = float(temp_in)
+            self._attr_current_temperature = float(temp_in)
         except (ValueError, TypeError):
             self._attr_current_temperature = None
 
-        # Target temperature
+        # Target temperature - handle both string and int values
         try:
-            self._attr_target_temperature = float(device_data.get("tempSet", 25))
+            temp_set = device_data.get("tempSet", 25)
+            if isinstance(temp_set, str):
+                temp_set = float(temp_set)
+            self._attr_target_temperature = float(temp_set)
+            _LOGGER.debug(
+                "Updated target temperature for %s: %.1f°C",
+                self.name, self._attr_target_temperature
+            )
         except (ValueError, TypeError):
             self._attr_target_temperature = 25
 
