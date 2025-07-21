@@ -259,9 +259,24 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
         )
 
         if success:
+            # Immediately update the local device data
             self.device_data.update(current_state)
+            # Immediately update the entity's internal state
             self._update_device_data(self.device_data)
+            # Immediately write the state to Home Assistant
             self.async_write_ha_state()
+            
+            _LOGGER.debug(
+                "Successfully updated %s state: state=%s, mode=%s, temp_set=%s, fan=%s",
+                self.name, current_state["state"], current_state["mode"], 
+                current_state["temp_set"], current_state["fan"]
+            )
+        else:
+            _LOGGER.error(
+                "Failed to update %s state: state=%s, mode=%s, temp_set=%s, fan=%s",
+                self.name, current_state["state"], current_state["mode"], 
+                current_state["temp_set"], current_state["fan"]
+            )
 
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
