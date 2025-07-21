@@ -1,4 +1,5 @@
 """Climate entity for Zhong Hong VRF."""
+import logging
 from typing import Any
 
 from homeassistant.components.climate import (
@@ -6,7 +7,6 @@ from homeassistant.components.climate import (
     ClimateEntityFeature,
     HVACMode,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
@@ -15,11 +15,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
     DOMAIN,
-    AC_MODE_OFF,
     AC_MODE_COOL,
-    AC_MODE_DRY,
-    AC_MODE_FAN,
-    AC_MODE_HEAT,
     FAN_SPEED_AUTO,
     FAN_SPEED_LOW,
     FAN_SPEED_MEDIUM,
@@ -27,9 +23,10 @@ from .const import (
     API_TO_HA_MODE_MAPPING,
     API_TO_HA_FAN_MAPPING,
     HA_TO_API_MODE_MAPPING,
-    HA_TO_API_FAN_MAPPING,
 )
 from .coordinator import ZhongHongDataUpdateCoordinator
+
+_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
@@ -147,9 +144,28 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
         """Set new target temperature."""
         temperature = kwargs.get(ATTR_TEMPERATURE)
         if temperature is None:
+            _LOGGER.debug("No temperature provided in set_temperature call")
             return
 
-        await self._set_device_state(temp_set=int(temperature))
+        # Ensure temperature is within valid range and properly formatted
+        min_temp = self.min_temp
+        max_temp = self.max_temp
+        
+        _LOGGER.debug(
+            "Setting temperature for %s: requested=%.1f, min=%.1f, max=%.1f",
+            self.name, temperature, min_temp, max_temp
+        )
+        
+        # Clamp temperature to valid range
+        temperature = max(min_temp, min(max_temp, temperature))
+        temp_int = int(round(temperature))
+        
+        _LOGGER.debug(
+            "Final temperature value for API call: %s (rounded from %.1f)",
+            temp_int, temperature
+        )
+        
+        await self._set_device_state(temp_set=temp_int)
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Set new target hvac mode."""

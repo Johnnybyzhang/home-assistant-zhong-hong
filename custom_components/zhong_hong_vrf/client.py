@@ -345,8 +345,20 @@ class ZhongHongClient:
             f"f=18&idx={idx}&on={state}&mode={mode}&tempSet={temp_set}&fan={fan}"
         )
         
+        _LOGGER.debug(
+            "Sending control command: idx=%s, on=%s, mode=%s, tempSet=%s, fan=%s",
+            idx, state, mode, temp_set, fan
+        )
+        
         response = await self._async_get(url)
-        return response is not None and response.get("err") == 0
+        success = response is not None and response.get("err") == 0
+        
+        _LOGGER.debug(
+            "Control command result: success=%s, response=%s",
+            success, response
+        )
+        
+        return success
 
     def start_tcp_listener(self) -> None:
         """Start TCP socket listener for live updates."""

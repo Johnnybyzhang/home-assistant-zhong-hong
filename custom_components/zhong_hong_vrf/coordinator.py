@@ -1,5 +1,4 @@
 """DataUpdateCoordinator for Zhong Hong VRF."""
-import asyncio
 import logging
 from datetime import timedelta
 
