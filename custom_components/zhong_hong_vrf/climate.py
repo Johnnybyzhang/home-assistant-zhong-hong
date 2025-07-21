@@ -286,7 +286,18 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
         )
 
         if success:
-            # Immediately update the local device data
+            # Immediately update the local device data both using the keys
+            # returned by the API (e.g. ``tempSet``) and the snake_case keys used
+            # internally so future coordinator refreshes and property access are
+            # consistent.
+            self.device_data.update(
+                {
+                    "on": current_state["state"],
+                    "mode": current_state["mode"],
+                    "tempSet": current_state["temp_set"],
+                    "fan": current_state["fan"],
+                }
+            )
             self.device_data.update(current_state)
             # Apply the new state without triggering the debounce check
             self._update_device_data(self.device_data, from_coordinator=False)
