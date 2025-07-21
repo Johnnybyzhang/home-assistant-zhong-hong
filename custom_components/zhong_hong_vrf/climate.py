@@ -61,6 +61,8 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
         super().__init__(coordinator)
         self.device_key = device_key
         self.device_data = device_data
+        self._last_manual_update = None
+        self._manual_update_timeout = 5  # seconds to prefer manual updates over coordinator
 
         oa, ia = device_key.split("_")
         self._attr_unique_id = f"{coordinator.config_entry.entry_id}_{device_key}"
@@ -97,6 +99,18 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
 
     def _update_device_data(self, device_data: dict[str, Any]) -> None:
         """Update device data."""
+        import time
+        
+        # Check if this is a coordinator update and we have recent manual changes
+        if hasattr(self, '_last_manual_update') and self._last_manual_update:
+            time_since_manual = time.time() - self._last_manual_update
+            if time_since_manual < self._manual_update_timeout:
+                _LOGGER.debug(
+                    "Skipping coordinator update for %s due to recent manual change (%.1fs ago)",
+                    self.name, time_since_manual
+                )
+                return
+
         self.device_data = device_data
         
         _LOGGER.debug("Device data update for %s: %s", self.name, device_data)
