@@ -23,6 +23,8 @@ from .const import (
     API_TO_HA_MODE_MAPPING,
     API_TO_HA_FAN_MAPPING,
     HA_TO_API_MODE_MAPPING,
+    MIN_TARGET_TEMP,
+    MAX_TARGET_TEMP,
 )
 from .coordinator import ZhongHongDataUpdateCoordinator
 
@@ -133,16 +135,17 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
         
         _LOGGER.debug("Device data update for %s: %s", self.name, device_data)
         
-        # Log temperature range for debugging
+        # Log highest/lowest values for debugging only; they are not the
+        # min/max temperature range of the entity.
         try:
-            lowest = float(device_data.get("lowestVal", 16))
-            highest = float(device_data.get("highestVal", 30))
+            lowest = float(device_data.get("lowestVal", 0))
+            highest = float(device_data.get("highestVal", 0))
             _LOGGER.debug(
-                "Temperature range for %s: lowest=%.1f, highest=%.1f, current_set=%s, current_in=%s",
-                self.name, lowest, highest, device_data.get("tempSet"), device_data.get("tempIn")
+                "Received highest/lowest values for %s: lowest=%.1f, highest=%.1f",
+                self.name, lowest, highest
             )
         except (ValueError, TypeError) as e:
-            _LOGGER.debug("Error parsing temperature range for %s: %s", self.name, e)
+            _LOGGER.debug("Error parsing highest/lowest values for %s: %s", self.name, e)
 
         # Current temperature - handle both string and int values
         try:
@@ -187,35 +190,17 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
     @property
     def min_temp(self) -> float:
         """Return the minimum temperature."""
-        try:
-            min_val = float(self.device_data.get("lowestVal", 16))
-            # Ensure min is not equal to or greater than max
-            max_val = float(self.device_data.get("highestVal", 30))
-            if min_val >= max_val:
-                _LOGGER.warning(
-                    "Invalid temperature range from device: min=%.1f, max=%.1f, using defaults",
-                    min_val, max_val
-                )
-                return 16.0
-            return min_val
-        except (ValueError, TypeError):
-            return 16.0
+        # The gateway reports "lowestVal" for some dual-point systems, but it
+        # does not represent the allowed range for the standard setpoint.
+        # Home Assistant's climate entity expects a static minimum value.
+        return float(MIN_TARGET_TEMP)
 
     @property
     def max_temp(self) -> float:
         """Return the maximum temperature."""
-        try:
-            max_val = float(self.device_data.get("highestVal", 30))
-            min_val = float(self.device_data.get("lowestVal", 16))
-            if max_val <= min_val:
-                _LOGGER.warning(
-                    "Invalid temperature range from device: min=%.1f, max=%.1f, using defaults",
-                    min_val, max_val
-                )
-                return 30.0
-            return max_val
-        except (ValueError, TypeError):
-            return 30.0
+        # The "highestVal" attribute is not the maximum setpoint for ordinary
+        # units, so we simply expose the default supported by the HTTP API.
+        return float(MAX_TARGET_TEMP)
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
         """Set new target temperature."""
@@ -343,6 +328,15 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
         if key != self.device_key:
             return
 
-        self.device_data.update(device_data)
-        self._update_device_data(self.device_data, from_coordinator=False)
-        self.async_write_ha_state()
+        def do_update() -> None:
+            """Apply the update on the event loop."""
+            self.device_data.update(device_data)
+            self._update_device_data(self.device_data, from_coordinator=False)
+            self.async_write_ha_state()
+
+        if self.hass:
+            # Run the update directly in Home Assistant's event loop to avoid
+            # thread-safety issues from the TCP listener thread.
+            self.hass.loop.call_soon_threadsafe(do_update)
+        else:
+            do_update()
