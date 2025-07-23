@@ -339,4 +339,8 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
             # issues when callbacks are invoked from the TCP listener thread.
             self.hass.add_job(do_update)
         else:
-            do_update()
+            # During initial setup ``hass`` can be ``None``. Simply update the
+            # cached state without calling ``async_write_ha_state`` since that
+            # must run on the Home Assistant event loop.
+            self.device_data.update(device_data)
+            self._update_device_data(self.device_data, from_coordinator=False)
