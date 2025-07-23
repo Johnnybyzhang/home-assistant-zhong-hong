@@ -96,6 +96,16 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
         )
 
         self._update_device_data(device_data)
+        
+    async def async_added_to_hass(self) -> None:
+        """Register callbacks when entity is added."""
+        await super().async_added_to_hass()
+        self.coordinator.register_device_callback(self._handle_tcp_update)
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Unregister callbacks when entity is removed."""
+        self.coordinator.unregister_device_callback(self._handle_tcp_update)
+        await super().async_will_remove_from_hass()
 
     def _update_device_data(self, device_data: dict[str, Any], *, from_coordinator: bool = True) -> None:
         """Update device data.
@@ -326,3 +336,13 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
         if device_data:
             self._update_device_data(device_data)
             self.async_write_ha_state()
+
+    def _handle_tcp_update(self, device_data: dict[str, Any]) -> None:
+        """Handle device updates received via TCP."""
+        key = f"{device_data.get('oa')}_{device_data.get('ia')}"
+        if key != self.device_key:
+            return
+
+        self.device_data.update(device_data)
+        self._update_device_data(self.device_data, from_coordinator=False)
+        self.async_write_ha_state()
