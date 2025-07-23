@@ -459,8 +459,9 @@ class ZhongHongClient:
                                 _LOGGER.debug("Known devices: %s", list(self.devices.keys()))
                                 if key in self.devices:
                                     self.devices[key].update(device_data)
-                                    _LOGGER.debug("TCP update for device %s: %s", key, device_data)
-                                    self._notify_update_callbacks(device_data)
+                                    full_data = dict(self.devices[key])
+                                    _LOGGER.debug("TCP update for device %s: %s", key, full_data)
+                                    self._notify_update_callbacks(full_data)
                                 else:
                                     _LOGGER.debug("TCP received data for unknown device %s", key)
                     
