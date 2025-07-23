@@ -57,3 +57,7 @@ HA_TO_API_FAN_MAPPING = {
     "medium": FAN_SPEED_MEDIUM,
     "high": FAN_SPEED_HIGH,
 }
+
+# Default temperature range supported by the HTTP API
+MIN_TARGET_TEMP: Final = 16
+MAX_TARGET_TEMP: Final = 30
