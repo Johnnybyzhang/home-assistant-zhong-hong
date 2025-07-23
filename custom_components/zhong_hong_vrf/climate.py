@@ -96,7 +96,7 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
         )
 
         self._update_device_data(device_data)
-
+        
     async def async_added_to_hass(self) -> None:
         """Register callbacks when entity is added."""
         await super().async_added_to_hass()

@@ -380,6 +380,11 @@ class ZhongHongClient:
 
     def _tcp_listener_thread(self) -> None:
         """TCP socket listener thread."""
+        import logging
+        # Reduce logging frequency for expected timeouts
+        timeout_logger = logging.getLogger(f"{__name__}.tcp_timeout")
+        timeout_logger.setLevel(logging.DEBUG)
+        
         def modbus_crc16(data):
             crc = 0xFFFF
             for pos in data:
@@ -394,15 +399,20 @@ class ZhongHongClient:
 
         _LOGGER.info("Starting TCP socket listener on %s:%s", self.host, self.port)
         
+        # Track consecutive timeouts to reduce log spam
+        consecutive_timeouts = 0
+        
         while self._listening:
             try:
                 if not self._tcp_socket:
                     _LOGGER.debug("Creating new TCP socket connection")
                     self._tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    self._tcp_socket.settimeout(10)
+                    # Increase timeout for expected idle periods
+                    self._tcp_socket.settimeout(30)
                     try:
                         self._tcp_socket.connect((self.host, self.port))
                         _LOGGER.info("TCP socket connected to %s:%s", self.host, self.port)
+                        consecutive_timeouts = 0  # Reset on successful connection
                     except Exception as connect_ex:
                         _LOGGER.error("Failed to connect TCP socket: %s", connect_ex)
                         time.sleep(5)
@@ -415,6 +425,9 @@ class ZhongHongClient:
                     _LOGGER.debug("No data received, sleeping...")
                     time.sleep(1)
                     continue
+
+                # Reset timeout counter on successful data
+                consecutive_timeouts = 0
 
                 # Parse 25-byte packets
                 offset = 0
@@ -454,8 +467,11 @@ class ZhongHongClient:
                     offset += 1  # Check every possible starting position
 
             except socket.timeout:
-                _LOGGER.debug("TCP socket timeout, retrying...")
-                continue
+                consecutive_timeouts += 1
+                # Log timeout only occasionally to reduce spam
+                if consecutive_timeouts % 30 == 1:  # Log roughly every minute
+                    _LOGGER.debug("TCP socket timeout (expected when idle)")
+                continue  # No sleep added - maintain original behavior
             except socket.error as sock_ex:
                 _LOGGER.error("TCP socket error: %s", sock_ex)
                 if self._tcp_socket:
