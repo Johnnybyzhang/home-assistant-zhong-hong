@@ -97,17 +97,35 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
 
         self._update_device_data(device_data)
 
-    def _update_device_data(self, device_data: dict[str, Any]) -> None:
-        """Update device data."""
+    async def async_added_to_hass(self) -> None:
+        """Register callbacks when entity is added."""
+        await super().async_added_to_hass()
+        self.coordinator.register_device_callback(self._handle_tcp_update)
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Unregister callbacks when entity is removed."""
+        self.coordinator.unregister_device_callback(self._handle_tcp_update)
+        await super().async_will_remove_from_hass()
+
+    def _update_device_data(self, device_data: dict[str, Any], *, from_coordinator: bool = True) -> None:
+        """Update device data.
+
+        The ``from_coordinator`` flag indicates whether this update originates
+        from the periodic coordinator refresh. When ``False`` (e.g. after a
+        manual state change), the debouncing check is skipped so the new values
+        are applied immediately.
+        """
         import time
-        
-        # Check if this is a coordinator update and we have recent manual changes
-        if hasattr(self, '_last_manual_update') and self._last_manual_update:
+
+        # Skip coordinator updates shortly after a manual change to avoid
+        # overwriting the freshly set values with stale data from the gateway.
+        if from_coordinator and self._last_manual_update:
             time_since_manual = time.time() - self._last_manual_update
             if time_since_manual < self._manual_update_timeout:
                 _LOGGER.debug(
                     "Skipping coordinator update for %s due to recent manual change (%.1fs ago)",
-                    self.name, time_since_manual
+                    self.name,
+                    time_since_manual,
                 )
                 return
 
@@ -264,6 +282,11 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
         }
         current_state.update(kwargs)
 
+        import time
+        # Mark when the manual change was initiated so any in-flight coordinator
+        # refreshes are ignored while the command is processed.
+        self._last_manual_update = time.time()
+
         success = await self.coordinator.client.async_control_device(
             idx=self.device_data.get("idx", 0),
             state=current_state["state"],
@@ -273,12 +296,27 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
         )
 
         if success:
-            # Immediately update the local device data
+            # Immediately update the local device data both using the keys
+            # returned by the API (e.g. ``tempSet``) and the snake_case keys used
+            # internally so future coordinator refreshes and property access are
+            # consistent.
+            self.device_data.update(
+                {
+                    "on": current_state["state"],
+                    "mode": current_state["mode"],
+                    "tempSet": current_state["temp_set"],
+                    "fan": current_state["fan"],
+                }
+            )
             self.device_data.update(current_state)
-            # Immediately update the entity's internal state
-            self._update_device_data(self.device_data)
+            # Apply the new state without triggering the debounce check
+            self._update_device_data(self.device_data, from_coordinator=False)
             # Immediately write the state to Home Assistant
             self.async_write_ha_state()
+
+            # Mark the time of this manual change so subsequent coordinator
+            # updates are ignored for a short period to prevent racing.
+            self._last_manual_update = time.time()
             
             _LOGGER.debug(
                 "Successfully updated %s state: state=%s, mode=%s, temp_set=%s, fan=%s",
@@ -298,3 +336,13 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
         if device_data:
             self._update_device_data(device_data)
             self.async_write_ha_state()
+
+    def _handle_tcp_update(self, device_data: dict[str, Any]) -> None:
+        """Handle device updates received via TCP."""
+        key = f"{device_data.get('oa')}_{device_data.get('ia')}"
+        if key != self.device_key:
+            return
+
+        self.device_data.update(device_data)
+        self._update_device_data(self.device_data, from_coordinator=False)
+        self.async_write_ha_state()
