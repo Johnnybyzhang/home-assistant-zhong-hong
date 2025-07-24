@@ -1,4 +1,5 @@
 """DataUpdateCoordinator for Zhong Hong VRF."""
+
 import logging
 from datetime import timedelta
 

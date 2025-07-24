@@ -1,4 +1,5 @@
 """Constants for Zhong Hong VRF integration."""
+
 from typing import Final
 
 DOMAIN: Final = "zhong_hong_vrf"

@@ -1,4 +1,5 @@
 """Config flow for Zhong Hong VRF integration."""
+
 import asyncio
 import logging
 from typing import Any
@@ -36,33 +37,37 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     )
 
     try:
-        _LOGGER.info("Validating connection to Zhong Hong VRF at %s:%s", data[CONF_HOST], data[CONF_PORT])
+        _LOGGER.info(
+            "Validating connection to Zhong Hong VRF at %s:%s",
+            data[CONF_HOST],
+            data[CONF_PORT],
+        )
         await client.async_setup()
-        
+
         # Test connection by fetching device info
         _LOGGER.debug("Fetching device info...")
         device_info = await client.async_get_device_info()
         if not device_info:
             _LOGGER.error("Failed to get device information from %s", data[CONF_HOST])
             raise CannotConnect("Failed to get device information")
-            
+
         _LOGGER.debug("Device info: %s", device_info)
-        
+
         _LOGGER.debug("Fetching devices...")
         devices = await client.async_get_devices()
         _LOGGER.debug("Found %d devices", len(devices))
         if not devices:
             _LOGGER.warning("No devices found at %s", data[CONF_HOST])
             raise CannotConnect("No devices found")
-            
+
         await client.async_shutdown()
-        
+
         return {
             "title": f"Zhong Hong VRF ({data[CONF_HOST]})",
             "devices_count": len(devices),
             "manufacturer": device_info.get("manufacturer", "Zhong Hong"),
         }
-        
+
     except aiohttp.ClientConnectorError as ex:
         _LOGGER.error("Connection failed to %s: %s", data[CONF_HOST], ex)
         raise CannotConnect(f"Connection failed: {ex}")
