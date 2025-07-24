@@ -1,6 +1,7 @@
 """Climate entity for Zhong Hong VRF."""
 
 import logging
+import asyncio
 from typing import Any
 
 from homeassistant.components.climate import (
@@ -120,11 +121,12 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
         *,
         source: str = "coordinator",
     ) -> None:
-        """Update device data from either the coordinator, TCP, or manual call."""
+        """Update device data from either the coordinator, TCP, or manual
+        call."""
         import time
 
         _LOGGER.debug(
-            "Processing %s update for %s with version %s", 
+            "Processing %s update for %s with version %s",
             source,
             self.name,
             device_data.get("_version"),
@@ -364,6 +366,11 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
             self._update_device_data(self.device_data, source="manual")
             # Immediately write the state to Home Assistant
             self.async_write_ha_state()
+
+            # Trigger a pull-based refresh so HA sees the confirmed state
+            self._last_manual_update = 0
+            await asyncio.sleep(1)
+            await self.coordinator.async_request_refresh()
 
             # Mark the time of this manual change so subsequent coordinator
             # updates are ignored for a short period to prevent racing.
