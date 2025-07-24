@@ -323,7 +323,7 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
         await self._set_device_state(state=0)
 
     async def _set_device_state(self, **kwargs: Any) -> None:
-        """Set device state."""
+        """Set device state optimistically and revert on failure."""
         current_state = {
             "state": self.device_data.get("on", 0),
             "mode": self.device_data.get("mode", AC_MODE_COOL),
@@ -334,9 +334,26 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
 
         import time
 
-        # Mark manual change to ignore coordinator
-        # refreshes are ignored while the command is processed.
+        # Mark manual change so incoming coordinator/tcp updates are
+        # temporarily ignored while the command is processed.
         self._last_manual_update = time.time()
+
+        # Store previous state in case the command fails
+        prev_data = dict(self.device_data)
+
+        # Optimistically update local state for snappier UI feedback
+        self.device_data.update(
+            {
+                "on": current_state["state"],
+                "mode": current_state["mode"],
+                "tempSet": current_state["temp_set"],
+                "fan": current_state["fan"],
+                "_version": self.device_data.get("_version", 0) + 1,
+            }
+        )
+        self.device_data.update(current_state)
+        self._update_device_data(self.device_data, source="manual")
+        self.async_write_ha_state()
 
         success = await self.coordinator.client.async_control_device(
             idx=self.device_data.get("idx", 0),
@@ -346,31 +363,13 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
             fan=current_state["fan"],
         )
 
-        if success:
-            # Immediately update the local device data both using the keys
-            # returned by API and snake_case keys
-            # internally for coordinator refreshes
-            # consistent.
-            self.device_data.update(
-                {
-                    "on": current_state["state"],
-                    "mode": current_state["mode"],
-                    "tempSet": current_state["temp_set"],
-                    "fan": current_state["fan"],
-                }
-            )
-            self.device_data.update(current_state)
-            # Apply the new state without triggering the debounce check
+        if not success:
+            # Revert to previous state if command failed
+            self.device_data = prev_data
             self._update_device_data(self.device_data, source="manual")
-            # Immediately write the state to Home Assistant
             self.async_write_ha_state()
-
-            # Mark the time of this manual change so subsequent coordinator
-            # updates are ignored for a short period to prevent racing.
-            self._last_manual_update = time.time()
-
-            _LOGGER.debug(
-                "Updated %s: state=%s, mode=%s, temp_set=%s, " "fan=%s",
+            _LOGGER.error(
+                "Failed %s: state=%s, mode=%s, temp_set=%s, fan=%s",
                 self.name,
                 current_state["state"],
                 current_state["mode"],
@@ -378,8 +377,10 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
                 current_state["fan"],
             )
         else:
-            _LOGGER.error(
-                "Failed %s: state=%s, mode=%s, temp_set=%s, fan=%s",
+            # Update the timestamp again so coordinator updates are skipped
+            self._last_manual_update = time.time()
+            _LOGGER.debug(
+                "Updated %s: state=%s, mode=%s, temp_set=%s, fan=%s",
                 self.name,
                 current_state["state"],
                 current_state["mode"],
