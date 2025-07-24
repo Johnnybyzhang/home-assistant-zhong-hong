@@ -24,6 +24,8 @@ from .const import (
     API_TO_HA_MODE_MAPPING,
     API_TO_HA_FAN_MAPPING,
     HA_TO_API_MODE_MAPPING,
+    DEFAULT_MIN_TEMP,
+    DEFAULT_MAX_TEMP,
 )
 from .coordinator import ZhongHongDataUpdateCoordinator
 
@@ -97,6 +99,7 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
             | ClimateEntityFeature.TURN_ON
             | ClimateEntityFeature.TURN_OFF
         )
+        self._attr_target_temperature_step = 1.0
 
         self._update_device_data(device_data, source="coordinator")
 
@@ -142,23 +145,21 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
 
         _LOGGER.debug("Device data update for %s: %s", self.name, device_data)
 
-        # Log temperature range for debugging
-        try:
-            lowest = float(device_data.get("lowestVal", 16))
-            highest = float(device_data.get("highestVal", 30))
-            _LOGGER.debug(
-                "Temperature range for %s: lowest=%.1f, highest=%.1f, "
-                "current_set=%s, current_in=%s",
-                self.name,
-                lowest,
-                highest,
-                device_data.get("tempSet"),
-                device_data.get("tempIn"),
-            )
-        except (ValueError, TypeError) as e:
-            _LOGGER.debug(
-                "Error parsing temperature range for %s: %s", self.name, e
-            )
+        # Log temperature range for debugging using configured options
+        lowest = self.coordinator.config_entry.options.get(
+            "min_temp", DEFAULT_MIN_TEMP
+        )
+        highest = self.coordinator.config_entry.options.get(
+            "max_temp", DEFAULT_MAX_TEMP
+        )
+        _LOGGER.debug(
+            "Temperature range for %s: lowest=%.1f, highest=%.1f, current_set=%s, current_in=%s",
+            self.name,
+            lowest,
+            highest,
+            device_data.get("tempSet"),
+            device_data.get("tempIn"),
+        )
 
         # Current temperature - handle both string and int values
         try:
@@ -206,39 +207,38 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
     @property
     def min_temp(self) -> float:
         """Return the minimum temperature."""
-        try:
-            min_val = float(self.device_data.get("lowestVal", 16))
-            # Ensure min is not equal to or greater than max
-            max_val = float(self.device_data.get("highestVal", 30))
-            if min_val >= max_val:
-                _LOGGER.warning(
-                    "Invalid temperature range: min=%.1f, max=%.1f, "
-                    "using defaults",
-                    min_val,
-                    max_val,
-                )
-                return 16.0
-            return min_val
-        except (ValueError, TypeError):
-            return 16.0
+        min_val = self.coordinator.config_entry.options.get(
+            "min_temp", DEFAULT_MIN_TEMP
+        )
+        max_val = self.coordinator.config_entry.options.get(
+            "max_temp", DEFAULT_MAX_TEMP
+        )
+        if min_val >= max_val:
+            _LOGGER.warning(
+                "Invalid temperature range in options: min=%.1f, max=%.1f, using defaults",
+                min_val,
+                max_val,
+            )
+            return float(DEFAULT_MIN_TEMP)
+        return float(min_val)
 
     @property
     def max_temp(self) -> float:
         """Return the maximum temperature."""
-        try:
-            max_val = float(self.device_data.get("highestVal", 30))
-            min_val = float(self.device_data.get("lowestVal", 16))
-            if max_val <= min_val:
-                _LOGGER.warning(
-                    "Invalid temperature range: min=%.1f, max=%.1f, "
-                    "using defaults",
-                    min_val,
-                    max_val,
-                )
-                return 30.0
-            return max_val
-        except (ValueError, TypeError):
-            return 30.0
+        max_val = self.coordinator.config_entry.options.get(
+            "max_temp", DEFAULT_MAX_TEMP
+        )
+        min_val = self.coordinator.config_entry.options.get(
+            "min_temp", DEFAULT_MIN_TEMP
+        )
+        if max_val <= min_val:
+            _LOGGER.warning(
+                "Invalid temperature range in options: min=%.1f, max=%.1f, using defaults",
+                min_val,
+                max_val,
+            )
+            return float(DEFAULT_MAX_TEMP)
+        return float(max_val)
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
         """Set new target temperature."""

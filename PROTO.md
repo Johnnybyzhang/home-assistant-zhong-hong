@@ -16,6 +16,7 @@ The Zhong Hong VRF system uses a **hybrid communication approach**:
 - **Port**: 80 (default)
 - **Authentication**: Basic Auth (username/password)
 - **Default Credentials**: admin/(empty)
+- **Implementation**: Requests are sent using a raw TCP socket without any aiohttp fallback
 
 ### API Endpoints
 
@@ -47,8 +48,8 @@ Response: {"err":0,"unit":[...]}
   "grp": 0,          // Group number
   "OnoffLock": 0,
   "tempLock": 0,
-  "highestVal": 25,  // Max temperature limit
-  "lowestVal": 25,   // Min temperature limit
+  "highestVal": 25,  // TempHigh for dual setpoint systems
+  "lowestVal": 25,   // TempLow for dual setpoint systems
   "modeLock": 0,
   "FlowDirection1": 0,
   "FlowDirection2": 0,
@@ -72,7 +73,7 @@ Response: {"err":0}
 - `idx`: Device index (from AC list)
 - `on`: Power state (0=off, 1=on)
 - `mode`: Operation mode (see mapping below)
-- `tempSet`: Target temperature (16-30°C)
+- `tempSet`: Target temperature (16-30°C, 1°C steps)
 - `fan`: Fan speed (see mapping below)
 
 ### Mode Mapping

@@ -3,9 +3,7 @@
   "name": "Zhong Hong VRF",
   "version": "1.0.0",
   "documentation": "https://github.com/Johnnybyzhang/home-assistant-zhong-hong",
-  "requirements": [
-    "aiohttp>=3.8.0"
-  ],
+  "requirements": [],
   "dependencies": [],
   "codeowners": ["@Johnnybyzhang"],
   "config_flow": true,

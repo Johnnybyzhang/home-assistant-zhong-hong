@@ -35,5 +35,19 @@
     "zhong_hong_vrf": {
       "name": "中弘VRF {oa}-{ia}"
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "中弘VRF选项",
+        "data": {
+          "min_temp": "最低温度",
+          "max_temp": "最高温度"
+        }
+      }
+    },
+    "error": {
+      "invalid_temp_range": "最高温度必须大于最低温度"
+    }
   }
 }
