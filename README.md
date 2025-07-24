@@ -34,6 +34,7 @@
 > 2. TCP端口默认为`9999`
 > 3. 用户名默认为`admin`
 > 4. 密码默认为空
+> 5. 从UI控制设备后会立即主动拉取一次最新状态
 
 # Credits
 [xswxm/home-assistant-zhong-hong](https://github.com/xswxm/home-assistant-zhong-hong)
