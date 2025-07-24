@@ -6,7 +6,6 @@ import logging
 import socket
 import time
 from typing import Any, Dict, List, Optional, Callable
-import aiohttp
 from threading import Thread, Lock
 
 from .const import DEFAULT_PORT, DEFAULT_USERNAME, DEFAULT_PASSWORD
@@ -30,7 +29,6 @@ class ZhongHongClient:
         self.username = username
         self.password = password
 
-        self._session: Optional[aiohttp.ClientSession] = None
         self._tcp_socket: Optional[socket.socket] = None
         self._listening = False
         self._tcp_thread: Optional[Thread] = None
@@ -79,27 +77,11 @@ class ZhongHongClient:
         self._loop = asyncio.get_running_loop()
         self._update_queue = asyncio.Queue()
 
-        # Configure session for HTTP/0.9 compatibility
-        connector = aiohttp.TCPConnector(
-            limit=10,
-            keepalive_timeout=30,
-            enable_cleanup_closed=True,
-        )
-
-        self._session = aiohttp.ClientSession(
-            auth=aiohttp.BasicAuth(self.username, self.password),
-            connector=connector,
-            timeout=aiohttp.ClientTimeout(total=30),
-            headers={"User-Agent": "ZhongHongVRF/1.0"},
-        )
-
-        _LOGGER.debug("HTTP client session created successfully")
+        _LOGGER.debug("Client setup complete")
         await self.async_refresh_devices()
 
     async def async_shutdown(self) -> None:
         """Shutdown the client."""
-        if self._session:
-            await self._session.close()
         self.stop_tcp_listener()
         if self._queue_task:
             self._queue_task.cancel()
@@ -135,7 +117,7 @@ class ZhongHongClient:
         try:
             return await self._async_get_http09(url)
         except Exception as ex:
-            _LOGGER.error("HTTP/0.9 request failed, falling back: %s", ex)
+            _LOGGER.error("HTTP/0.9 request failed: %s", ex)
             return None
 
     async def _async_get_http09(self, url: str) -> Optional[Dict[str, Any]]:
@@ -218,81 +200,6 @@ class ZhongHongClient:
             _LOGGER.error("HTTP/0.9 socket error: %s", ex)
             return None
 
-    async def _async_get_aiohttp_fallback(
-        self, url: str
-    ) -> Optional[Dict[str, Any]]:
-        """Fallback aiohttp method with improved HTTP/0.9 error handling."""
-        if not self._session:
-            _LOGGER.error("No session available for HTTP request")
-            return None
-
-        _LOGGER.debug("Making HTTP/0.9 request to: %s", url)
-        try:
-            timeout = aiohttp.ClientTimeout(total=10)
-            async with self._session.get(url, timeout=timeout) as response:
-                _LOGGER.debug("HTTP response status: %s", response.status)
-                text = await response.text()
-                _LOGGER.debug("Raw response text: %s", repr(text))
-
-                try:
-                    result = json.loads(text)
-                    _LOGGER.debug("Parsed JSON response: %s", result)
-                    return result
-                except json.JSONDecodeError as e:
-                    _LOGGER.error("Failed to parse JSON from response: %s", e)
-                    return None
-
-        except aiohttp.ClientResponseError as ex:
-            # Handle HTTP/0.9 format errors specifically
-            _LOGGER.debug("Handling HTTP/0.9 response error: %s", str(ex))
-            if ex.status == 400 and "Expected HTTP/" in str(ex):
-                try:
-                    # Extract the JSON from the exception message
-                    message = str(ex)
-
-                    # Look for the JSON object directly
-                    json_start = message.find('{"err"')
-                    if json_start == -1:
-                        json_start = message.find('{"')
-
-                    if json_start != -1:
-                        # Find the last closing brace
-                        json_end = message.rfind("}")
-                        if json_end > json_start:
-                            json_str = message[json_start : json_end + 1]
-                            # Clean up any remaining quotes or escape sequences
-                            json_str = json_str.replace(", ")
-                            result = json.loads(json_str)
-                            json_str = json_str.replace(", ")
-                            _LOGGER.debug(
-                                "Parsed JSON from HTTP/0.9: %s",
-                                result,
-                            )
-                            return result
-                except Exception as json_ex:
-                    _LOGGER.error(
-                        "Failed to parse JSON from HTTP/0.9 error: %s", json_ex
-                    )
-                    _LOGGER.debug(
-                        "Failed JSON string: %s",
-                        (
-                            message[json_start : json_end + 1]
-                            if "json_start" in locals()
-                            else "N/A"
-                        ),
-                    )
-
-            _LOGGER.error("HTTP response error: %s", ex)
-            return None
-        except aiohttp.ClientConnectorError as ex:
-            _LOGGER.error("Connection failed to %s: %s", self.host, ex)
-            return None
-        except asyncio.TimeoutError:
-            _LOGGER.error("HTTP request timeout to %s", self.host)
-            return None
-        except Exception as ex:
-            _LOGGER.error("HTTP failed: %s (%s)", type(ex).__name__, ex)
-            return None
 
     async def async_get_devices(self) -> List[Dict[str, Any]]:
         """Get all devices via HTTP API by scanning all pages."""

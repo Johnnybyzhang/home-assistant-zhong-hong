@@ -35,5 +35,19 @@
     "zhong_hong_vrf": {
       "name": "Zhong Hong VRF {oa}-{ia}"
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Zhong Hong VRF Options",
+        "data": {
+          "min_temp": "Minimum temperature",
+          "max_temp": "Maximum temperature"
+        }
+      }
+    },
+    "error": {
+      "invalid_temp_range": "Maximum temperature must be greater than minimum temperature"
+    }
   }
 }

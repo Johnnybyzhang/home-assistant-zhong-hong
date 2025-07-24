@@ -4,7 +4,6 @@ import asyncio
 import logging
 from typing import Any
 
-import aiohttp
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import (
@@ -18,7 +17,14 @@ from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
 
 from .client import ZhongHongClient
-from .const import DEFAULT_PORT, DEFAULT_USERNAME, DEFAULT_PASSWORD, DOMAIN
+from .const import (
+    DEFAULT_PORT,
+    DEFAULT_USERNAME,
+    DEFAULT_PASSWORD,
+    DOMAIN,
+    DEFAULT_MIN_TEMP,
+    DEFAULT_MAX_TEMP,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -77,9 +83,9 @@ async def validate_input(
             "manufacturer": device_info.get("manufacturer", "Zhong Hong"),
         }
 
-    except aiohttp.ClientConnectorError as ex:
+    except OSError as ex:
         _LOGGER.error("Connection failed to %s: %s", data[CONF_HOST], ex)
-        raise CannotConnect(f"Connection failed: {ex}")
+        raise CannotConnect("Connection failed")
     except asyncio.TimeoutError:
         _LOGGER.error("Timeout connecting to %s", data[CONF_HOST])
         raise CannotConnect("Timeout connecting to device")
@@ -126,3 +132,45 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 class CannotConnect(HomeAssistantError):
     """Error to indicate we cannot connect."""
+
+
+class ZhongHongOptionsFlowHandler(config_entries.OptionsFlow):
+    """Handle options for Zhong Hong VRF."""
+
+    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
+        """Initialize options flow."""
+        self.config_entry = config_entry
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Manage the options."""
+        errors = {}
+        if user_input is not None:
+            min_temp = user_input.get("min_temp", DEFAULT_MIN_TEMP)
+            max_temp = user_input.get("max_temp", DEFAULT_MAX_TEMP)
+            if min_temp >= max_temp:
+                errors["base"] = "invalid_temp_range"
+            else:
+                return self.async_create_entry(title="", data=user_input)
+
+        options_schema = vol.Schema(
+            {
+                vol.Optional(
+                    "min_temp",
+                    default=self.config_entry.options.get("min_temp", DEFAULT_MIN_TEMP),
+                ): int,
+                vol.Optional(
+                    "max_temp",
+                    default=self.config_entry.options.get("max_temp", DEFAULT_MAX_TEMP),
+                ): int,
+            }
+        )
+
+        return self.async_show_form(
+            step_id="init", data_schema=options_schema, errors=errors
+        )
+
+
+async def async_get_options_flow(config_entry: config_entries.ConfigEntry):
+    return ZhongHongOptionsFlowHandler(config_entry)
