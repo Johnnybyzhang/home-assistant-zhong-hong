@@ -7,7 +7,12 @@ from typing import Any
 import aiohttp
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.const import CONF_HOST, CONF_PORT, CONF_USERNAME, CONF_PASSWORD
+from homeassistant.const import (
+    CONF_HOST,
+    CONF_PORT,
+    CONF_USERNAME,
+    CONF_PASSWORD,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
@@ -27,7 +32,9 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
 )
 
 
-async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str, Any]:
+async def validate_input(
+    hass: HomeAssistant, data: dict[str, Any]
+) -> dict[str, Any]:
     """Validate the user input allows us to connect."""
     client = ZhongHongClient(
         host=data[CONF_HOST],
@@ -48,7 +55,9 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
         _LOGGER.debug("Fetching device info...")
         device_info = await client.async_get_device_info()
         if not device_info:
-            _LOGGER.error("Failed to get device information from %s", data[CONF_HOST])
+            _LOGGER.error(
+                "Failed to get device information from %s", data[CONF_HOST]
+            )
             raise CannotConnect("Failed to get device information")
 
         _LOGGER.debug("Device info: %s", device_info)
@@ -91,17 +100,23 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
         if user_input is not None:
             try:
-                _LOGGER.info("Processing Zhong Hong VRF configuration: %s", user_input)
+                _LOGGER.info(
+                    "Processing Zhong Hong VRF configuration: %s", user_input
+                )
                 info = await validate_input(self.hass, user_input)
                 _LOGGER.info("Configuration successful, creating entry")
                 await self.async_set_unique_id(user_input[CONF_HOST])
                 self._abort_if_unique_id_configured()
-                return self.async_create_entry(title=info["title"], data=user_input)
+                return self.async_create_entry(
+                    title=info["title"], data=user_input
+                )
             except CannotConnect as ex:
                 _LOGGER.error("Cannot connect: %s", ex)
                 errors["base"] = "cannot_connect"
             except Exception as ex:  # pylint: disable=broad-except
-                _LOGGER.exception("Unexpected exception during validation: %s", ex)
+                _LOGGER.exception(
+                    "Unexpected exception during validation: %s", ex
+                )
                 errors["base"] = "unknown"
 
         return self.async_show_form(

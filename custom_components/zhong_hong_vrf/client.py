@@ -41,7 +41,9 @@ class ZhongHongClient:
 
     async def async_setup(self) -> None:
         """Set up the client."""
-        _LOGGER.info("Setting up Zhong Hong client for %s:%s", self.host, self.port)
+        _LOGGER.info(
+            "Setting up Zhong Hong client for %s:%s", self.host, self.port
+        )
 
         # Configure session for HTTP/0.9 compatibility
         connector = aiohttp.TCPConnector(
@@ -106,7 +108,10 @@ class ZhongHongClient:
         path = parsed.path + (f"?{parsed.query}" if parsed.query else "")
 
         _LOGGER.debug(
-            "Making HTTP/0.9 request via raw socket to: %s:%s%s", host, port, path
+            "Making HTTP/0.9 request via raw socket to: %s:%s%s",
+            host,
+            port,
+            path,
         )
 
         try:
@@ -121,7 +126,9 @@ class ZhongHongClient:
             auth_header = ""
             if self.username or self.password:
                 credentials = f"{self.username}:{self.password}"
-                encoded = base64.b64encode(credentials.encode("utf-8")).decode("ascii")
+                encoded = base64.b64encode(credentials.encode("utf-8")).decode(
+                    "ascii"
+                )
                 auth_header = f"Authorization: Basic {encoded}\r\n"
 
             request = f"GET {path} HTTP/1.0\r\n"
@@ -171,7 +178,9 @@ class ZhongHongClient:
             _LOGGER.error("HTTP/0.9 socket error: %s", ex)
             return None
 
-    async def _async_get_aiohttp_fallback(self, url: str) -> Optional[Dict[str, Any]]:
+    async def _async_get_aiohttp_fallback(
+        self, url: str
+    ) -> Optional[Dict[str, Any]]:
         """Fallback aiohttp method with improved HTTP/0.9 error handling."""
         if not self._session:
             _LOGGER.error("No session available for HTTP request")
@@ -212,10 +221,11 @@ class ZhongHongClient:
                         if json_end > json_start:
                             json_str = message[json_start : json_end + 1]
                             # Clean up any remaining quotes or escape sequences
-                            json_str = json_str.replace("\\'", "'").replace('\\"', '"')
+                            json_str = json_str.replace(", ")
                             result = json.loads(json_str)
+                            json_str = json_str.replace(", ")
                             _LOGGER.debug(
-                                "Successfully parsed JSON from HTTP/0.9 error: %s",
+                                "Parsed JSON from HTTP/0.9: %s",
                                 result,
                             )
                             return result
@@ -241,7 +251,7 @@ class ZhongHongClient:
             _LOGGER.error("HTTP request timeout to %s", self.host)
             return None
         except Exception as ex:
-            _LOGGER.error("HTTP request failed: %s (%s)", type(ex).__name__, ex)
+            _LOGGER.error("HTTP failed: %s (%s)", type(ex).__name__, ex)
             return None
 
     async def async_get_devices(self) -> List[Dict[str, Any]]:
@@ -250,25 +260,27 @@ class ZhongHongClient:
         page = 0
 
         while True:
-            url = f"http://{self.host}:80/cgi-bin/api.html?f=17&p={page}"
+            url = f"http://{self.host}/cgi-bin/api.html?f=17&p={page}"
             response = await self._async_get(url)
 
             if not response or "unit" not in response:
-                _LOGGER.debug("No units in response for page %d, stopping scan", page)
+                _LOGGER.debug("No units on page %d, stopping", page)
                 break
 
             units = response["unit"]
             if not units:
-                _LOGGER.debug("Empty units array for page %d, stopping scan", page)
+                _LOGGER.debug("Empty units on page %d, stopping", page)
                 break
 
             _LOGGER.debug("Found %d devices on page %d", len(units), page)
             devices.extend(units)
 
-            # Include partial pages - any page with less than 5 units is last page
+            # Include partial pages - <5 units is last
             if len(units) < 5:
                 _LOGGER.debug(
-                    "Partial page (%d units) indicates end on page %d", len(units), page
+                    "Partial page (%d units) indicates end on page %d",
+                    len(units),
+                    page,
                 )
                 break
 
@@ -276,7 +288,9 @@ class ZhongHongClient:
 
             # Safety limit to prevent infinite loops
             if page > 20:
-                _LOGGER.warning("Reached maximum page limit (20), stopping scan")
+                _LOGGER.warning(
+                    "Reached maximum page limit (20), stopping scan"
+                )
                 break
 
         _LOGGER.info("Total devices discovered: %d", len(devices))
@@ -287,7 +301,7 @@ class ZhongHongClient:
         try:
             # Get brand info
             brand_response = await self._async_get(
-                f"http://{self.host}:80/cgi-bin/api.html?f=24"
+                f"http://{self.host}/cgi-bin/api.html?f=24"
             )
             brand = self._get_brand_name(
                 brand_response.get("brand", 0) if brand_response else 0,
@@ -296,7 +310,7 @@ class ZhongHongClient:
 
             # Get device info
             device_response = await self._async_get(
-                f"http://{self.host}:80/cgi-bin/api.html?f=1"
+                f"http://{self.host}/cgi-bin/api.html?f=1"
             )
 
             return {
@@ -307,9 +321,13 @@ class ZhongHongClient:
                     else "Unknown"
                 ),
                 "sw_version": (
-                    device_response.get("sw", "").strip() if device_response else ""
+                    device_response.get("sw", "").strip()
+                    if device_response
+                    else ""
                 ),
-                "model_id": device_response.get("id", "") if device_response else "",
+                "model_id": (
+                    device_response.get("id", "") if device_response else ""
+                ),
             }
         except Exception as ex:
             _LOGGER.error("Error getting device info: %s", ex)
@@ -376,12 +394,12 @@ class ZhongHongClient:
     ) -> bool:
         """Control a device via HTTP API."""
         url = (
-            f"http://{self.host}:80/cgi-bin/api.html?"
-            f"f=18&idx={idx}&on={state}&mode={mode}&tempSet={temp_set}&fan={fan}"
+            f"http://{self.host}/cgi-bin/api.html?f=18&"
+            f"idx={idx}&on={state}&mode={mode}&tempSet={temp_set}&fan={fan}"
         )
 
         _LOGGER.debug(
-            "Sending control command: idx=%s, on=%s, mode=%s, tempSet=%s, fan=%s",
+            "Control cmd: idx=%s, on=%s, mode=%s, tempSet=%s, fan=%s",
             idx,
             state,
             mode,
@@ -392,9 +410,7 @@ class ZhongHongClient:
         response = await self._async_get(url)
         success = response is not None and response.get("err") == 0
 
-        _LOGGER.debug(
-            "Control command result: success=%s, response=%s", success, response
-        )
+        _LOGGER.debug("Cmd result: success=%s, response=%s", success, response)
 
         return success
 
@@ -403,8 +419,7 @@ class ZhongHongClient:
         if self._listening:
             return
 
-        self._listening = True
-        self._tcp_thread = Thread(target=self._tcp_listener_thread, daemon=True)
+        self._tcp_thread = Thread(target=self._tcp_listener_thread)
         self._tcp_thread.start()
 
     def stop_tcp_listener(self) -> None:
@@ -431,23 +446,26 @@ class ZhongHongClient:
                         crc >>= 1
             return crc.to_bytes(2, byteorder="little")
 
-        _LOGGER.info("Starting TCP socket listener on %s:%s", self.host, self.port)
+        _LOGGER.info(
+            "Starting TCP socket listener on %s:%s", self.host, self.port
+        )
 
         while self._listening:
             try:
-                if not self._tcp_socket:
-                    _LOGGER.debug("Creating new TCP socket connection")
-                    self._tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    self._tcp_socket.settimeout(10)
-                    try:
-                        self._tcp_socket.connect((self.host, self.port))
-                        _LOGGER.info(
-                            "TCP socket connected to %s:%s", self.host, self.port
-                        )
-                    except Exception as connect_ex:
-                        _LOGGER.error("Failed to connect TCP socket: %s", connect_ex)
-                        time.sleep(5)
-                        continue
+                _LOGGER.debug("Creating new TCP socket connection")
+                self._tcp_socket = socket.socket(
+                    socket.AF_INET, socket.SOCK_STREAM
+                )
+                self._tcp_socket.settimeout(10)
+                try:
+                    self._tcp_socket.connect((self.host, self.port))
+                    _LOGGER.info(
+                        "TCP connected to %s:%s", self.host, self.port
+                    )
+                except Exception as connect_ex:
+                    _LOGGER.error("TCP connect failed: %s", connect_ex)
+                    time.sleep(5)
+                    continue
 
                 data = self._tcp_socket.recv(1024)
                 _LOGGER.debug(
@@ -485,26 +503,25 @@ class ZhongHongClient:
                                     "tempIn": payload[10],
                                     "alarm": payload[11],
                                 }
-
-                                key = f"{device_data['oa']}_{device_data['ia']}"
+                                oa = device_data["oa"]
+                                ia = device_data["ia"]
+                                key = f"{oa}_{ia}"
                                 _LOGGER.debug(
-                                    "TCP device key: %s from payload: %s",
-                                    key,
-                                    payload.hex(),
+                                    "Devices: %s", list(self.devices.keys())
                                 )
                                 _LOGGER.debug(
-                                    "Known devices: %s", list(self.devices.keys())
+                                    "Update %s: %s", key, device_data
                                 )
                                 if key in self.devices:
                                     self.devices[key].update(device_data)
                                     _LOGGER.debug(
-                                        "TCP update for device %s: %s", key, device_data
+                                        "TCP update for %s: %s",
+                                        key,
+                                        device_data,
                                     )
                                     self._notify_update_callbacks(device_data)
                                 else:
-                                    _LOGGER.debug(
-                                        "TCP received data for unknown device %s", key
-                                    )
+                                    _LOGGER.debug("Unknown device %s", key)
 
                     offset += 1  # Check every possible starting position
 

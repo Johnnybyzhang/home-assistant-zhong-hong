@@ -36,7 +36,9 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Zhong Hong VRF climate entities."""
-    coordinator: ZhongHongDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator: ZhongHongDataUpdateCoordinator = hass.data[DOMAIN][
+        entry.entry_id
+    ]
 
     entities = []
     for device_key, device_data in coordinator.data["devices"].items():
@@ -68,7 +70,8 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
         )
 
         oa, ia = device_key.split("_")
-        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_{device_key}"
+        entry_id = coordinator.config_entry.entry_id
+        self._attr_unique_id = f"{entry_id}_{device_key}"
 
         # Ensure we have a proper device name
         device_name = f"AC {oa}-{ia}"
@@ -118,7 +121,8 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
             time_since_manual = time.time() - self._last_manual_update
             if time_since_manual < self._manual_update_timeout:
                 _LOGGER.debug(
-                    "Skipping coordinator update for %s due to recent manual change (%.1fs ago)",
+                    "Skipping coordinator update for %s due to recent manual "
+                    "change (%.1fs ago)",
                     self.name,
                     time_since_manual,
                 )
@@ -133,7 +137,8 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
             lowest = float(device_data.get("lowestVal", 16))
             highest = float(device_data.get("highestVal", 30))
             _LOGGER.debug(
-                "Temperature range for %s: lowest=%.1f, highest=%.1f, current_set=%s, current_in=%s",
+                "Temperature range for %s: lowest=%.1f, highest=%.1f, "
+                "current_set=%s, current_in=%s",
                 self.name,
                 lowest,
                 highest,
@@ -141,7 +146,9 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
                 device_data.get("tempIn"),
             )
         except (ValueError, TypeError) as e:
-            _LOGGER.debug("Error parsing temperature range for %s: %s", self.name, e)
+            _LOGGER.debug(
+                "Error parsing temperature range for %s: %s", self.name, e
+            )
 
         # Current temperature - handle both string and int values
         try:
@@ -172,7 +179,9 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
             self._attr_hvac_mode = HVACMode.OFF
         else:
             ac_mode = int(device_data.get("mode", AC_MODE_COOL))
-            self._attr_hvac_mode = API_TO_HA_MODE_MAPPING.get(ac_mode, HVACMode.COOL)
+            self._attr_hvac_mode = API_TO_HA_MODE_MAPPING.get(
+                ac_mode, HVACMode.COOL
+            )
 
         # Fan mode
         fan_speed = int(device_data.get("fan", 0))
@@ -193,7 +202,8 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
             max_val = float(self.device_data.get("highestVal", 30))
             if min_val >= max_val:
                 _LOGGER.warning(
-                    "Invalid temperature range from device: min=%.1f, max=%.1f, using defaults",
+                    "Invalid temperature range: min=%.1f, max=%.1f, "
+                    "using defaults",
                     min_val,
                     max_val,
                 )
@@ -210,7 +220,8 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
             min_val = float(self.device_data.get("lowestVal", 16))
             if max_val <= min_val:
                 _LOGGER.warning(
-                    "Invalid temperature range from device: min=%.1f, max=%.1f, using defaults",
+                    "Invalid temperature range: min=%.1f, max=%.1f, "
+                    "using defaults",
                     min_val,
                     max_val,
                 )
@@ -290,7 +301,7 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
 
         import time
 
-        # Mark when the manual change was initiated so any in-flight coordinator
+        # Mark manual change to ignore coordinator
         # refreshes are ignored while the command is processed.
         self._last_manual_update = time.time()
 
@@ -304,8 +315,8 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
 
         if success:
             # Immediately update the local device data both using the keys
-            # returned by the API (e.g. ``tempSet``) and the snake_case keys used
-            # internally so future coordinator refreshes and property access are
+            # returned by API and snake_case keys
+            # internally for coordinator refreshes
             # consistent.
             self.device_data.update(
                 {
@@ -326,7 +337,7 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
             self._last_manual_update = time.time()
 
             _LOGGER.debug(
-                "Successfully updated %s state: state=%s, mode=%s, temp_set=%s, fan=%s",
+                "Updated %s: state=%s, mode=%s, temp_set=%s, " "fan=%s",
                 self.name,
                 current_state["state"],
                 current_state["mode"],
@@ -335,7 +346,7 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
             )
         else:
             _LOGGER.error(
-                "Failed to update %s state: state=%s, mode=%s, temp_set=%s, fan=%s",
+                "Failed %s: state=%s, mode=%s, temp_set=%s, fan=%s",
                 self.name,
                 current_state["state"],
                 current_state["mode"],
