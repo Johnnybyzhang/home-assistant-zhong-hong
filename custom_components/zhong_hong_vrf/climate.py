@@ -52,6 +52,7 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
 
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_has_entity_name = True
+    _attr_should_poll = False
     _enable_turn_on_off_backwards_compatibility = False
 
     def __init__(
@@ -101,34 +102,66 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
             | ClimateEntityFeature.TURN_OFF
         )
 
-        self._update_device_data(device_data)
+        self._update_device_data(device_data, source="coordinator")
+
+    async def async_added_to_hass(self) -> None:
+        """Handle entity added to hass."""
+        await super().async_added_to_hass()
+        self.coordinator.register_device_callback(self._handle_device_update)
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Cleanup on removal."""
+        self.coordinator.unregister_device_callback(self._handle_device_update)
+        await super().async_will_remove_from_hass()
 
     def _update_device_data(
-        self, device_data: dict[str, Any], *, from_coordinator: bool = True
+        self,
+        device_data: dict[str, Any],
+        *,
+        source: str = "coordinator",
     ) -> None:
-        """Update device data.
-
-        The ``from_coordinator`` flag indicates whether this update originates
-        from the periodic coordinator refresh. When ``False`` (e.g. after a
-        manual state change), the debouncing check is skipped so the new values
-        are applied immediately.
-        """
+        """Update device data from either the coordinator, TCP, or manual call."""
         import time
+
+        _LOGGER.debug(
+            "Processing %s update for %s with version %s", 
+            source,
+            self.name,
+            device_data.get("_version"),
+        )
 
         # Skip coordinator updates shortly after a manual change to avoid
         # overwriting the freshly set values with stale data from the gateway.
-        if from_coordinator and self._last_manual_update:
+        if self._last_manual_update:
             time_since_manual = time.time() - self._last_manual_update
-            if time_since_manual < self._manual_update_timeout:
+            debounce = (
+                self._manual_update_timeout
+                if source == "coordinator"
+                else self._manual_update_timeout / 2
+            )
+            if time_since_manual < debounce:
                 _LOGGER.debug(
-                    "Skipping coordinator update for %s due to recent manual "
-                    "change (%.1fs ago)",
+                    "Skipping %s update for %s due to recent manual change "
+                    "(%.1fs ago)",
+                    source,
                     self.name,
                     time_since_manual,
                 )
                 return
 
-        self.device_data = device_data
+        current_version = self.device_data.get("_version", 0)
+        new_version = device_data.get("_version", current_version)
+
+        if new_version < current_version:
+            _LOGGER.debug(
+                "Skipping stale update for %s (version %s < %s)",
+                self.name,
+                new_version,
+                current_version,
+            )
+            return
+
+        self.device_data.update(device_data)
 
         _LOGGER.debug("Device data update for %s: %s", self.name, device_data)
 
@@ -328,7 +361,7 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
             )
             self.device_data.update(current_state)
             # Apply the new state without triggering the debounce check
-            self._update_device_data(self.device_data, from_coordinator=False)
+            self._update_device_data(self.device_data, source="manual")
             # Immediately write the state to Home Assistant
             self.async_write_ha_state()
 
@@ -358,5 +391,12 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
         """Handle updated data from the coordinator."""
         device_data = self.coordinator.data["devices"].get(self.device_key)
         if device_data:
-            self._update_device_data(device_data)
+            self._update_device_data(device_data, source="coordinator")
             self.async_write_ha_state()
+
+    def _handle_device_update(self, device_data: dict[str, Any]) -> None:
+        """Handle device update from TCP listener."""
+        if device_data.get("key") != self.device_key:
+            return
+        self._update_device_data(device_data, source="tcp")
+        self.async_write_ha_state()

@@ -7,7 +7,7 @@ import socket
 import time
 from typing import Any, Dict, List, Optional, Callable
 import aiohttp
-from threading import Thread
+from threading import Thread, Lock
 
 from .const import DEFAULT_PORT, DEFAULT_USERNAME, DEFAULT_PASSWORD
 
@@ -36,14 +36,48 @@ class ZhongHongClient:
         self._tcp_thread: Optional[Thread] = None
         self._update_callbacks: List[Callable[[Dict[str, Any]], None]] = []
 
+        # Asyncio integration
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._update_queue: Optional[asyncio.Queue] = None
+        self._queue_task: Optional[asyncio.Task] = None
+
+        # Synchronization primitives
+        self._devices_lock = Lock()
+
+        # Version tracking for device state
+        self._version_counter = 0
+
         self.devices: Dict[str, Dict[str, Any]] = {}
         self.device_info: Dict[str, str] = {}
+
+    def _next_version(self) -> int:
+        """Return the next monotonic version number."""
+        self._version_counter += 1
+        return self._version_counter
+
+    async def _process_update_queue(self) -> None:
+        """Process queued TCP updates in the event loop."""
+        if not self._update_queue:
+            return
+        while self._listening:
+            try:
+                device_data = await self._update_queue.get()
+                if device_data is None:
+                    break
+                self._notify_update_callbacks(device_data)
+            except asyncio.CancelledError:
+                break
+            except Exception as ex:  # pragma: no cover - just log
+                _LOGGER.error("Queue processing error: %s", ex)
 
     async def async_setup(self) -> None:
         """Set up the client."""
         _LOGGER.info(
             "Setting up Zhong Hong client for %s:%s", self.host, self.port
         )
+
+        self._loop = asyncio.get_running_loop()
+        self._update_queue = asyncio.Queue()
 
         # Configure session for HTTP/0.9 compatibility
         connector = aiohttp.TCPConnector(
@@ -67,6 +101,12 @@ class ZhongHongClient:
         if self._session:
             await self._session.close()
         self.stop_tcp_listener()
+        if self._queue_task:
+            self._queue_task.cancel()
+            try:
+                await self._queue_task
+            except asyncio.CancelledError:
+                pass
 
     def register_update_callback(
         self, callback: Callable[[Dict[str, Any]], None]
@@ -379,6 +419,7 @@ class ZhongHongClient:
         self.devices = {}
         for device in devices:
             key = f"{device.get('oa', 1)}_{device.get('ia', 1)}"
+            device["_version"] = self._next_version()
             self.devices[key] = device
 
         if not self.device_info:
@@ -419,7 +460,10 @@ class ZhongHongClient:
         if self._listening:
             return
 
-        self._tcp_thread = Thread(target=self._tcp_listener_thread)
+        self._listening = True
+        if self._loop and not self._queue_task:
+            self._queue_task = self._loop.create_task(self._process_update_queue())
+        self._tcp_thread = Thread(target=self._tcp_listener_thread, daemon=True)
         self._tcp_thread.start()
 
     def stop_tcp_listener(self) -> None:
@@ -430,6 +474,8 @@ class ZhongHongClient:
             self._tcp_socket = None
         if self._tcp_thread:
             self._tcp_thread.join(timeout=5)
+        if self._update_queue and self._loop:
+            self._loop.call_soon_threadsafe(self._update_queue.put_nowait, None)
 
     def _tcp_listener_thread(self) -> None:
         """TCP socket listener thread."""
@@ -513,13 +559,20 @@ class ZhongHongClient:
                                     "Update %s: %s", key, device_data
                                 )
                                 if key in self.devices:
-                                    self.devices[key].update(device_data)
+                                    with self._devices_lock:
+                                        self.devices[key].update(device_data)
+                                        self.devices[key]["_version"] = self._next_version()
                                     _LOGGER.debug(
                                         "TCP update for %s: %s",
                                         key,
                                         device_data,
                                     )
-                                    self._notify_update_callbacks(device_data)
+                                    if self._loop and self._update_queue:
+                                        send_data = {"key": key, **device_data, "_version": self.devices[key]["_version"]}
+                                        self._loop.call_soon_threadsafe(
+                                            self._update_queue.put_nowait,
+                                            send_data,
+                                        )
                                 else:
                                     _LOGGER.debug("Unknown device %s", key)
 
