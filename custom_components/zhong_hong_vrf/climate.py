@@ -52,6 +52,7 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
 
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_has_entity_name = True
+    _attr_should_poll = False
     _enable_turn_on_off_backwards_compatibility = False
 
     def __init__(
@@ -64,10 +65,6 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
         super().__init__(coordinator)
         self.device_key = device_key
         self.device_data = device_data
-        self._last_manual_update = None
-        self._manual_update_timeout = (
-            5  # seconds to prefer manual updates over coordinator
-        )
 
         oa, ia = device_key.split("_")
         entry_id = coordinator.config_entry.entry_id
@@ -101,34 +98,47 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
             | ClimateEntityFeature.TURN_OFF
         )
 
-        self._update_device_data(device_data)
+        self._update_device_data(device_data, source="coordinator")
+
+    async def async_added_to_hass(self) -> None:
+        """Handle entity added to hass."""
+        await super().async_added_to_hass()
+        self.coordinator.register_device_callback(self._handle_device_update)
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Cleanup on removal."""
+        self.coordinator.unregister_device_callback(self._handle_device_update)
+        await super().async_will_remove_from_hass()
 
     def _update_device_data(
-        self, device_data: dict[str, Any], *, from_coordinator: bool = True
+        self,
+        device_data: dict[str, Any],
+        *,
+        source: str = "coordinator",
     ) -> None:
-        """Update device data.
+        """Update device data from either the coordinator, TCP, or manual call."""
 
-        The ``from_coordinator`` flag indicates whether this update originates
-        from the periodic coordinator refresh. When ``False`` (e.g. after a
-        manual state change), the debouncing check is skipped so the new values
-        are applied immediately.
-        """
-        import time
+        _LOGGER.debug(
+            "Processing %s update for %s with version %s", 
+            source,
+            self.name,
+            device_data.get("_version"),
+        )
 
-        # Skip coordinator updates shortly after a manual change to avoid
-        # overwriting the freshly set values with stale data from the gateway.
-        if from_coordinator and self._last_manual_update:
-            time_since_manual = time.time() - self._last_manual_update
-            if time_since_manual < self._manual_update_timeout:
-                _LOGGER.debug(
-                    "Skipping coordinator update for %s due to recent manual "
-                    "change (%.1fs ago)",
-                    self.name,
-                    time_since_manual,
-                )
-                return
 
-        self.device_data = device_data
+        current_version = self.device_data.get("_version", 0)
+        new_version = device_data.get("_version", current_version)
+
+        if new_version < current_version:
+            _LOGGER.debug(
+                "Skipping stale update for %s (version %s < %s)",
+                self.name,
+                new_version,
+                current_version,
+            )
+            return
+
+        self.device_data.update(device_data)
 
         _LOGGER.debug("Device data update for %s: %s", self.name, device_data)
 
@@ -299,12 +309,6 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
         }
         current_state.update(kwargs)
 
-        import time
-
-        # Mark manual change to ignore coordinator
-        # refreshes are ignored while the command is processed.
-        self._last_manual_update = time.time()
-
         success = await self.coordinator.client.async_control_device(
             idx=self.device_data.get("idx", 0),
             state=current_state["state"],
@@ -327,14 +331,12 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
                 }
             )
             self.device_data.update(current_state)
-            # Apply the new state without triggering the debounce check
-            self._update_device_data(self.device_data, from_coordinator=False)
+            # Apply the new state immediately
+            self._update_device_data(self.device_data, source="manual")
             # Immediately write the state to Home Assistant
             self.async_write_ha_state()
 
-            # Mark the time of this manual change so subsequent coordinator
-            # updates are ignored for a short period to prevent racing.
-            self._last_manual_update = time.time()
+
 
             _LOGGER.debug(
                 "Updated %s: state=%s, mode=%s, temp_set=%s, " "fan=%s",
@@ -358,5 +360,12 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
         """Handle updated data from the coordinator."""
         device_data = self.coordinator.data["devices"].get(self.device_key)
         if device_data:
-            self._update_device_data(device_data)
+            self._update_device_data(device_data, source="coordinator")
             self.async_write_ha_state()
+
+    def _handle_device_update(self, device_data: dict[str, Any]) -> None:
+        """Handle device update from TCP listener."""
+        if device_data.get("key") != self.device_key:
+            return
+        self._update_device_data(device_data, source="tcp")
+        self.async_write_ha_state()
