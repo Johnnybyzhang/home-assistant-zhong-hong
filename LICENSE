@@ -1,3 +1,9 @@
+Copyright (c) 2025 Johnnybyzhang
+Refactored communications part to use raw socket to avoid parsing aiohttp error message. 
+List each indoor AC unit as its own device instead of listing everything in the same device
+Redone the config flow to support multiple outdoor unit
+Fix racing condition when controlling using the WebUI and physical control at the same time
+
 MIT License
 
 Copyright (c) 2025 Adon
