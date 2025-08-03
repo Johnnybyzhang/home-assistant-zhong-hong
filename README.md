@@ -1,5 +1,7 @@
 # 中弘VRF网关 (绿米版) Home Assistant集成
 
+**[English → README_EN.md](./README_EN.md)**
+
 集成使用了HTTP+TCP混合的方式解决了原有HTTP方式响应延迟的问题，使用体验更友好。
 
 > [!WARNING]
@@ -37,3 +39,7 @@
 
 # Credits
 [xswxm/home-assistant-zhong-hong](https://github.com/xswxm/home-assistant-zhong-hong)
+
+---
+
+**[English → README_EN.md](./README_EN.md)**
