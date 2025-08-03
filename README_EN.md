@@ -43,7 +43,7 @@ This integration supports a wide range of AC brands including:
 - **Specialized Systems**: Protocol converters, thermostats, modular systems
 - **Regional Variants**: York Qingdao, CH-York, CoolWind, and more
 
-For a complete list of supported brands, see the `AC_BRANDS` mapping in `const.py`.
+For a complete list of supported brands, see the `AC_BRANDS` mapping in [`custom_components/zhong_hong_vrf/const.py`](https://github.com/Johnnybyzhang/Zhong_Hong_VRF/blob/main/custom_components/zhong_hong_vrf/const.py).
 
 # Credits
 [xswxm/home-assistant-zhong-hong](https://github.com/xswxm/home-assistant-zhong-hong)
