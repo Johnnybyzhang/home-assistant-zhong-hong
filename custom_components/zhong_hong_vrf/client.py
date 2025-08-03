@@ -8,7 +8,7 @@ import time
 from typing import Any, Dict, List, Optional, Callable
 from threading import Thread, Lock
 
-from .const import DEFAULT_PORT, DEFAULT_USERNAME, DEFAULT_PASSWORD
+from .const import DEFAULT_PORT, DEFAULT_USERNAME, DEFAULT_PASSWORD, AC_BRANDS
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -287,37 +287,9 @@ class ZhongHongClient:
 
     def _get_brand_name(self, brand: int, proto: int) -> str:
         """Get brand name from brand ID."""
-        brand_mapping = {
-            1: "日立",
-            2: "大金",
-            3: "东芝",
-            4: "三菱重工",
-            5: "三菱电机",
-            6: "格力",
-            7: "海信",
-            8: "美的",
-            9: "海尔",
-            10: "LG",
-            13: "三星",
-            14: "奥克斯",
-            15: "松下",
-            16: "约克",
-            19: "格力四代",
-            21: "麦克维尔",
-            24: "TCL",
-            25: "志高",
-            26: "天加",
-            35: "约克T8600",
-            36: "酷风",
-            37: "约克青岛",
-            38: "富士通",
-            39: "三星(NotNASA_BMS)",
-            101: "CH-Emerson",
-            102: "CH-麦克维尔",
-            103: "特灵",
-            255: f"模拟器{proto}台",
-        }
-        return brand_mapping.get(brand, "Unknown")
+        if brand == 255:
+            return f"Simulator {proto} units"
+        return AC_BRANDS.get(brand, "Unknown")
 
     async def async_refresh_devices(self) -> None:
         """Refresh device data from HTTP API."""
