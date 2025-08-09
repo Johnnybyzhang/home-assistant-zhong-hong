@@ -113,6 +113,11 @@ class ZhongHongClimate(CoordinatorEntity, ClimateEntity):
         self.coordinator.unregister_device_callback(self._handle_device_update)
         await super().async_will_remove_from_hass()
 
+    @property
+    def available(self) -> bool:  # type: ignore[override]
+        """Entity availability based on coordinator and TCP connection."""
+        return super().available and self.coordinator.client.is_tcp_connected
+
     def _update_device_data(
         self,
         device_data: dict[str, Any],
